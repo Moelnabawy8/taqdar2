@@ -1,0 +1,15 @@
+# My-Communication Academy
+
+> My-Communication Academy is an online learning platform offering expert-led courses in Telecom, IT, Networking, and Business, helping professionals worldwide advance their careers with globally recognized certifications.
+
+## Main Pages
+
+- [Home](https://my-communication.uk/): Overview of the academy, featured courses, and student testimonials.
+- [Courses](https://my-communication.uk/courses): Browse all available courses in telecom, IT, networking, and business.
+- [About Us](https://my-communication.uk/about-us): The academy's mission, story, and instructors.
+- [Contact Us](https://my-communication.uk/contact-us): Get in touch with the My-Communication team.
+
+## Account
+
+- [Login](https://my-communication.uk/login): Sign in to your student account.
+- [Register](https://my-communication.uk/register): Create a new account to start learning.

@@ -1,0 +1,243 @@
+<?php
+defined('BASEPATH') OR exit('No direct script access allowed');
+
+/**
+ * SEO controller — serves crawler-friendly HTML for Googlebot/Bingbot/etc.
+ *
+ * Real users hit the React SPA at root URLs. The .htaccess detects bot
+ * User-Agents and INTERNALLY rewrites the request to the matching method
+ * here. The bot still sees the original root URL in its address bar; the
+ * server simply renders this HTML for it.
+ *
+ * Every method:
+ *   1. Queries the same Api_frontend_model the React API uses (single source of truth)
+ *   2. Builds a $seo array with title, description, canonical, og:*, JSON-LD
+ *   3. Renders application/views/seo/layout.php which embeds the page partial
+ *   4. Sets Cache-Control: public, max-age=600 — cuts load 99% on repeat crawls
+ *
+ * Canonical URLs ALWAYS point to the root domain (https://my-communication.uk/...)
+ * never to /api/seo/* — so Search Console indexes clean URLs.
+ */
+class Seo extends CI_Controller
+{
+    /** Root URL of the public site — used for canonical + sitemap + og:url */
+    private $root;
+
+    public function __construct()
+    {
+        parent::__construct();
+        $this->load->database();
+        $this->load->helper(['url', 'text']);
+        $this->load->model('api_frontend_model');
+        $this->root = rtrim(get_settings('system_url') ?: 'https://my-communication.uk', '/');
+    }
+
+    // ───────────────────────── HOME ──────────────────────────
+    public function home() { file_put_contents("/tmp/seo_marker.log", date("H:i:s")." UA=".($_SERVER["HTTP_USER_AGENT"]??"")."
+", FILE_APPEND); _seo_home_marker(); } private function _seo_home_marker_OLD() {
+    {
+        $top_courses = $this->api_frontend_model->get_top_courses(8) ?: [];
+        $categories  = $this->api_frontend_model->get_categories() ?: [];
+
+        $seo = [
+            'title'       => 'My-Communication Academy — Telecom, IT & Networking Courses',
+    public function home() { file_put_contents("/tmp/seo_marker.log", date("H:i:s")." UA=".($_SERVER["HTTP_USER_AGENT"]??"")."
+", FILE_APPEND); _seo_home_marker(); } private function _seo_home_marker_OLD() {
+    {
+        $top_courses = $this->api_frontend_model->get_top_courses(8) ?: [];
+        $categories  = $this->api_frontend_model->get_categories() ?: [];
+
+        $seo = [
+            'title'       => 'My-Communication Academy — Telecom, IT & Networking Courses',
+            'description' => 'Master telecom, networking, IT and business skills with industry-expert instructors. Flexible online learning with globally recognized certifications.',
+            'canonical'   => $this->root . '/',
+            'og_image'    => $this->root . '/favicon.ico',
+            'jsonld'      => json_encode([
+                '@context' => 'https://schema.org',
+                '@type'    => 'EducationalOrganization',
+                'name'     => 'My-Communication Academy',
+                'url'      => $this->root,
+                'description' => 'Online courses in telecom, IT, networking, and business.',
+            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        ];
+
+        $this->_render('home', $seo, [
+            'top_courses' => $top_courses,
+            'categories'  => $categories,
+        ]);
+    }
+
+    // ───────────────────────── COURSES LISTING ───────────────
+    public function courses()
+    {
+        $courses = $this->api_frontend_model->get_courses(['per_page' => 60]) ?: [];
+        // Some get_courses implementations return a paginated wrapper — flatten if needed
+        if (is_array($courses) && isset($courses['data'])) $courses = $courses['data'];
+
+        $seo = [
+            'title'       => 'All Courses — My-Communication Academy',
+            'description' => 'Browse our full catalog of telecom, networking, and IT engineering courses. Filter by category, level, or price.',
+            'canonical'   => $this->root . '/courses',
+            'og_image'    => $this->root . '/favicon.ico',
+            'jsonld'      => json_encode([
+                '@context' => 'https://schema.org',
+                '@type'    => 'CollectionPage',
+                'name'     => 'All Courses',
+                'url'      => $this->root . '/courses',
+            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        ];
+
+        $this->_render('courses', $seo, ['courses' => $courses]);
+    }
+
+    // ───────────────────────── COURSE DETAIL ─────────────────
+    public function course_detail($id)
+    {
+        $id = (int) $id;
+        $course = $this->api_frontend_model->get_course_details($id);
+        if (!$course) { return $this->_404(); }
+
+        $title = (is_array($course) ? ($course['title'] ?? 'Course') : ($course->title ?? 'Course'));
+        $desc  = strip_tags((string)(is_array($course) ? ($course['short_description'] ?? '') : ($course->short_description ?? '')));
+        $price = is_array($course) ? ($course['price'] ?? 0) : ($course->price ?? 0);
+
+        $seo = [
+            'title'       => $title . ' — My-Communication Academy',
+            'description' => character_limiter($desc ?: 'Learn ' . $title, 160),
+            'canonical'   => $this->root . '/courses/' . $id,
+            'og_image'    => $this->root . '/favicon.ico',
+            'jsonld'      => json_encode([
+                '@context'    => 'https://schema.org',
+                '@type'       => 'Course',
+                'name'        => $title,
+                'description' => $desc ?: 'Course at My-Communication Academy',
+                'provider'    => [
+                    '@type' => 'EducationalOrganization',
+                    'name'  => 'My-Communication Academy',
+                    'url'   => $this->root,
+                ],
+                'offers' => [
+                    '@type' => 'Offer',
+                    'price' => $price,
+                    'priceCurrency' => 'USD',
+                    'url'   => $this->root . '/courses/' . $id,
+                ],
+            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        ];
+
+        $this->_render('course_detail', $seo, ['course' => $course]);
+    }
+
+    // ───────────────────────── ABOUT US ──────────────────────
+    public function about_us()
+    {
+        $seo = [
+            'title'       => 'About Us — My-Communication Academy',
+            'description' => 'Learn about My-Communication Academy: our mission, our instructors, and our commitment to telecom education.',
+            'canonical'   => $this->root . '/about-us',
+            'og_image'    => $this->root . '/favicon.ico',
+            'jsonld'      => json_encode([
+                '@context' => 'https://schema.org',
+                '@type'    => 'AboutPage',
+                'url'      => $this->root . '/about-us',
+            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        ];
+        $this->_render('about_us', $seo, []);
+    }
+
+    // ───────────────────────── BECOME INSTRUCTOR ─────────────
+    public function become_instructor()
+    {
+        $seo = [
+            'title'       => 'Become an Instructor — My-Communication Academy',
+            'description' => 'Share your expertise with thousands of learners. Apply to become an instructor at My-Communication Academy.',
+            'canonical'   => $this->root . '/become-instructor',
+            'og_image'    => $this->root . '/favicon.ico',
+        ];
+        $this->_render('become_instructor', $seo, []);
+    }
+
+    // ───────────────────────── CONTACT US ────────────────────
+    public function contact_us()
+    {
+        $seo = [
+            'title'       => 'Contact Us — My-Communication Academy',
+            'description' => 'Get in touch with the My-Communication Academy team — phone, email, and London office address.',
+            'canonical'   => $this->root . '/contact-us',
+            'og_image'    => $this->root . '/favicon.ico',
+            'jsonld'      => json_encode([
+                '@context' => 'https://schema.org',
+                '@type'    => 'ContactPage',
+                'url'      => $this->root . '/contact-us',
+            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        ];
+        $this->_render('contact_us', $seo, []);
+    }
+
+    // ───────────────────────── BLOG INDEX ────────────────────
+    public function blog()
+    {
+        $blogs = $this->api_frontend_model->get_blogs(['per_page' => 30]) ?: [];
+        if (is_array($blogs) && isset($blogs['data'])) $blogs = $blogs['data'];
+
+        $seo = [
+            'title'       => 'Blog — My-Communication Academy',
+            'description' => 'Articles, tutorials, and insights on telecom, networking, and IT engineering from our expert instructors.',
+            'canonical'   => $this->root . '/blog',
+            'og_image'    => $this->root . '/favicon.ico',
+            'jsonld'      => json_encode([
+                '@context' => 'https://schema.org',
+                '@type'    => 'Blog',
+                'url'      => $this->root . '/blog',
+            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        ];
+        $this->_render('blog', $seo, ['blogs' => $blogs]);
+    }
+
+    // ───────────────────────── BLOG DETAIL ───────────────────
+    public function blog_detail($slug)
+    {
+        $blog = $this->api_frontend_model->get_blog_details($slug);
+        if (!$blog) { return $this->_404(); }
+
+        $title = is_array($blog) ? ($blog['title'] ?? 'Blog') : ($blog->title ?? 'Blog');
+        $desc  = strip_tags((string)(is_array($blog) ? ($blog['short_description'] ?? '') : ($blog->short_description ?? '')));
+
+        $seo = [
+            'title'       => $title . ' — My-Communication Academy',
+            'description' => character_limiter($desc ?: 'Read this article on My-Communication Academy', 160),
+            'canonical'   => $this->root . '/blog/' . urlencode($slug),
+            'og_image'    => $this->root . '/favicon.ico',
+            'jsonld'      => json_encode([
+                '@context' => 'https://schema.org',
+                '@type'    => 'BlogPosting',
+                'headline' => $title,
+                'url'      => $this->root . '/blog/' . urlencode($slug),
+            ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+        ];
+        $this->_render('blog_detail', $seo, ['blog' => $blog]);
+    }
+
+    // ───────────────────────── HELPERS ───────────────────────
+    private function _render(string $partial, array $seo, array $data = []): void
+    {
+        // 10-min HTTP cache for crawlers — repeated fetches stay cheap
+        header('Cache-Control: public, max-age=600');
+        header('X-Robots-Tag: index, follow');
+
+        $vars = array_merge($seo, $data, ['partial' => $partial, 'root' => $this->root]);
+        $this->load->view('seo/layout', $vars);
+    }
+
+    private function _404(): void
+    {
+        $this->output->set_status_header(404);
+        $seo = [
+            'title'       => 'Page not found — My-Communication Academy',
+            'description' => 'The page you requested does not exist.',
+            'canonical'   => $this->root . '/',
+            'og_image'    => $this->root . '/favicon.ico',
+        ];
+        $this->_render('not_found', $seo, []);
+    }
+}
